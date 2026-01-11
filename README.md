@@ -22,6 +22,8 @@ A beautiful Python desktop application that converts images into ASCII art with 
 
 ## Screenshots
 
+![ASCII Art Converter](example.jpg)
+
 *Upload an image, adjust settings, and watch your ASCII art come to life!*
 
 ## Installation
