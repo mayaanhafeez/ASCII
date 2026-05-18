@@ -1,0 +1,9 @@
+img2ascii.py
+img2ascii_gui.py
+img2ascii_gui_tk.py
+__pycache__/
+*.pyc
+requirements-desktop.txt
+example.jpg
+images.jpeg
+kanye-kanye-weat.gif
