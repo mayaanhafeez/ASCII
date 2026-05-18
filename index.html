@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>img → ASCII</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #1a1a1a;
+      color: #d4d4d4;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 14px;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    header {
+      padding: 14px 20px;
+      border-bottom: 1px solid #2e2e2e;
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    header h1 { font-size: 17px; font-weight: 600; color: #fff; letter-spacing: -0.3px; }
+    header .sub { color: #555; font-size: 13px; }
+
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      overflow: hidden;
+    }
+
+    /* ── Left panel ── */
+    .left {
+      border-right: 1px solid #2e2e2e;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      gap: 0;
+    }
+
+    .upload-zone {
+      margin: 14px;
+      border: 2px dashed #383838;
+      border-radius: 8px;
+      height: 180px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      user-select: none;
+      flex-shrink: 0;
+    }
+    .upload-zone:hover, .upload-zone.drag-over {
+      border-color: #4a9eff;
+      background: rgba(74,158,255,0.04);
+    }
+    .upload-zone .icon { font-size: 28px; margin-bottom: 8px; opacity: 0.5; }
+    .upload-zone .hint { color: #555; font-size: 13px; text-align: center; line-height: 1.6; }
+    .upload-zone .hint span { color: #4a9eff; }
+
+    .preview-wrap {
+      margin: 0 14px 14px;
+      display: none;
+      flex-shrink: 0;
+    }
+    .preview-wrap img {
+      width: 100%;
+      border-radius: 6px;
+      border: 1px solid #2e2e2e;
+      display: block;
+      max-height: 160px;
+      object-fit: contain;
+      background: #111;
+    }
+    .preview-wrap .fname {
+      font-size: 11px;
+      color: #555;
+      margin-top: 5px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .settings {
+      padding: 4px 14px 16px;
+      flex: 1;
+    }
+    .settings-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #555;
+      margin-bottom: 14px;
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .row label {
+      font-size: 13px;
+      color: #999;
+      width: 68px;
+      flex-shrink: 0;
+    }
+    .row input[type="range"] {
+      flex: 1;
+      accent-color: #4a9eff;
+      cursor: pointer;
+    }
+    .row .val {
+      font-size: 12px;
+      color: #666;
+      width: 34px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      flex-shrink: 0;
+    }
+    .row select {
+      flex: 1;
+      background: #252525;
+      border: 1px solid #383838;
+      border-radius: 4px;
+      color: #d4d4d4;
+      padding: 5px 8px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .row select:focus { outline: none; border-color: #4a9eff; }
+
+    .checks {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 18px;
+      margin-top: 4px;
+    }
+    .check-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: #999;
+      cursor: pointer;
+    }
+    .check-label input { accent-color: #4a9eff; cursor: pointer; }
+    .check-label:hover { color: #bbb; }
+
+    /* ── Right panel ── */
+    .right {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .out-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+      border-bottom: 1px solid #2e2e2e;
+      flex-shrink: 0;
+    }
+    .out-header .title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #555;
+    }
+    .out-actions { display: flex; align-items: center; gap: 10px; }
+    .status { font-size: 12px; color: #4caf50; }
+    .status.err { color: #f44336; }
+
+    .btn {
+      background: #252525;
+      border: 1px solid #383838;
+      color: #ccc;
+      padding: 5px 13px;
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 0.12s, border-color 0.12s;
+    }
+    .btn:hover:not(:disabled) { background: #303030; border-color: #4a4a4a; }
+    .btn:disabled { opacity: 0.4; cursor: default; }
+
+    .out-body {
+      flex: 1;
+      overflow: auto;
+      padding: 14px 16px;
+    }
+    .out-body pre {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 11px;
+      line-height: 1.18;
+      white-space: pre;
+      color: #c8c8c8;
+    }
+
+    .placeholder {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      color: #3a3a3a;
+    }
+    .placeholder-icon { font-size: 52px; opacity: 0.25; }
+    .placeholder p { font-size: 13px; }
+
+    .spinner {
+      width: 22px;
+      height: 22px;
+      border: 2px solid #2e2e2e;
+      border-top-color: #4a9eff;
+      border-radius: 50%;
+      animation: spin 0.65s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+<header>
+  <h1>img → ASCII</h1>
+  <span class="sub">Convert any image to ASCII art</span>
+</header>
+
+<main>
+  <div class="left">
+    <div class="upload-zone" id="dropZone">
+      <div class="icon">🖼</div>
+      <div class="hint">Drop an image here<br><span>or click to browse</span></div>
+    </div>
+    <input type="file" id="fileInput" accept="image/*" style="display:none">
+
+    <div class="preview-wrap" id="previewWrap">
+      <img id="previewImg" src="" alt="preview">
+      <div class="fname" id="fname"></div>
+    </div>
+
+    <div class="settings">
+      <div class="settings-title">Settings</div>
+
+      <div class="row">
+        <label>Width</label>
+        <input type="range" id="maxWidth" min="20" max="200" value="80">
+        <span class="val" id="maxWidthVal">80</span>
+      </div>
+      <div class="row">
+        <label>Height</label>
+        <input type="range" id="maxHeight" min="10" max="100" value="40">
+        <span class="val" id="maxHeightVal">40</span>
+      </div>
+      <div class="row">
+        <label>Ramp</label>
+        <select id="ramp">
+          <option value="blocks">Blocks (█▓▒░)</option>
+          <option value="classic">Classic (@#S%?*)</option>
+          <option value="detailed">Detailed (70 chars)</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>Contrast</label>
+        <input type="range" id="contrast" min="100" max="300" value="160">
+        <span class="val" id="contrastVal">1.60</span>
+      </div>
+      <div class="row">
+        <label>Gamma</label>
+        <input type="range" id="gamma" min="40" max="140" value="75">
+        <span class="val" id="gammaVal">0.75</span>
+      </div>
+
+      <div class="checks">
+        <label class="check-label"><input type="checkbox" id="dither"> Dither</label>
+        <label class="check-label"><input type="checkbox" id="invert"> Invert</label>
+        <label class="check-label"><input type="checkbox" id="double"> Double width</label>
+      </div>
+    </div>
+  </div>
+
+  <div class="right">
+    <div class="out-header">
+      <span class="title">Output</span>
+      <div class="out-actions">
+        <span class="status" id="status"></span>
+        <button class="btn" id="copyBtn" disabled onclick="copyAscii()">Copy</button>
+      </div>
+    </div>
+    <div class="out-body" id="outBody">
+      <div class="placeholder">
+        <div class="placeholder-icon">🎨</div>
+        <p>Upload an image to get started</p>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+  let imageB64 = null;
+  let lastAscii = null;
+  let debounce = null;
+
+  const dropZone   = document.getElementById('dropZone');
+  const fileInput  = document.getElementById('fileInput');
+  const outBody    = document.getElementById('outBody');
+  const copyBtn    = document.getElementById('copyBtn');
+  const statusEl   = document.getElementById('status');
+
+  // ── Upload ──
+  dropZone.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', e => e.target.files[0] && loadFile(e.target.files[0]));
+
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    const f = e.dataTransfer.files[0];
+    if (f && f.type.startsWith('image/')) loadFile(f);
+  });
+
+  function loadFile(file) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        // Cap at 1200px to keep payload reasonable
+        const MAX = 1200;
+        let w = img.width, h = img.height;
+        if (w > MAX || h > MAX) {
+          const s = MAX / Math.max(w, h);
+          w = Math.round(w * s);
+          h = Math.round(h * s);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        imageB64 = canvas.toDataURL('image/jpeg', 0.92).split(',')[1];
+
+        document.getElementById('previewImg').src = e.target.result;
+        document.getElementById('fname').textContent = file.name;
+        document.getElementById('previewWrap').style.display = 'block';
+
+        convert();
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // ── Settings ──
+  [
+    ['maxWidth',  'maxWidthVal',  v => v],
+    ['maxHeight', 'maxHeightVal', v => v],
+    ['contrast',  'contrastVal',  v => (v / 100).toFixed(2)],
+    ['gamma',     'gammaVal',     v => (v / 100).toFixed(2)],
+  ].forEach(([id, dispId, fmt]) => {
+    const el = document.getElementById(id);
+    el.addEventListener('input', () => {
+      document.getElementById(dispId).textContent = fmt(el.value);
+      scheduleConvert();
+    });
+  });
+
+  ['ramp', 'dither', 'invert', 'double'].forEach(id =>
+    document.getElementById(id).addEventListener('change', scheduleConvert)
+  );
+
+  function scheduleConvert() {
+    clearTimeout(debounce);
+    debounce = setTimeout(convert, 280);
+  }
+
+  // ── Convert ──
+  async function convert() {
+    if (!imageB64) return;
+    outBody.innerHTML = '<div class="placeholder"><div class="spinner"></div></div>';
+    setStatus('');
+
+    const payload = {
+      image:      imageB64,
+      max_width:  +document.getElementById('maxWidth').value,
+      max_height: +document.getElementById('maxHeight').value,
+      ramp:       document.getElementById('ramp').value,
+      contrast:   document.getElementById('contrast').value / 100,
+      gamma:      document.getElementById('gamma').value / 100,
+      dither:     document.getElementById('dither').checked,
+      invert:     document.getElementById('invert').checked,
+      double:     document.getElementById('double').checked,
+    };
+
+    try {
+      const res  = await fetch('/api/convert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+
+      if (data.error) {
+        setStatus('Error: ' + data.error, true);
+        outBody.innerHTML = '<div class="placeholder"><p style="color:#f44336">Conversion failed</p></div>';
+      } else {
+        lastAscii = data.ascii;
+        outBody.innerHTML = `<pre>${esc(data.ascii)}</pre>`;
+        copyBtn.disabled = false;
+      }
+    } catch (err) {
+      setStatus('Network error', true);
+      outBody.innerHTML = '<div class="placeholder"><p style="color:#f44336">Request failed</p></div>';
+    }
+  }
+
+  function esc(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function setStatus(msg, isErr) {
+    statusEl.textContent = msg;
+    statusEl.className = 'status' + (isErr ? ' err' : '');
+  }
+
+  async function copyAscii() {
+    if (!lastAscii) return;
+    await navigator.clipboard.writeText(lastAscii);
+    setStatus('Copied!');
+    setTimeout(() => setStatus(''), 2000);
+  }
+</script>
+</body>
+</html>
