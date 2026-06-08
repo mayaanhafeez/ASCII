@@ -30,17 +30,30 @@ from PySide6.QtWidgets import (
 
 from img2ascii import (
     image_to_ascii,
+    image_to_colored,
     DEFAULT_RAMP,
     CHAT_RAMP_BLOCKS,
     CHAT_RAMP_CLASSIC,
+    CHAT_RAMP_SAFE,
     apply_gamma,
 )
+
+PRESETS = {
+    "iMessage":         (33, 18),
+    "WhatsApp":         (36, 20),
+    "Telegram":         (55, 28),
+    "Discord (mobile)": (42, 22),
+    "Discord (desktop)":(80, 40),
+    "SMS":              (32, 15),
+    "Twitter / X":      (40, 22),
+}
 
 
 class ASCIIArtConverter(QMainWindow):
     def __init__(self):
         super().__init__()
         self.current_image: Optional[Image.Image] = None
+        self._plain_ascii: str = ""
         self.setWindowTitle("Image to ASCII Art Converter")
         self.setMinimumSize(1200, 700)
 
@@ -82,10 +95,19 @@ class ASCIIArtConverter(QMainWindow):
         controls_layout = QFormLayout()
         controls_layout.setSpacing(10)
 
+        # Preset dropdown
+        self.preset_combo = QComboBox()
+        self.preset_combo.addItem("Custom")
+        for name in PRESETS:
+            self.preset_combo.addItem(name)
+        self.preset_combo.currentTextChanged.connect(self.on_preset_changed)
+        controls_layout.addRow("Preset:", self.preset_combo)
+
         # Max Width
         self.max_width_spin = QSpinBox()
         self.max_width_spin.setRange(10, 500)
         self.max_width_spin.setValue(70)
+        self.max_width_spin.valueChanged.connect(lambda: self.preset_combo.setCurrentIndex(0))
         self.max_width_spin.valueChanged.connect(self.on_setting_changed)
         controls_layout.addRow("Max Width:", self.max_width_spin)
 
@@ -93,6 +115,7 @@ class ASCIIArtConverter(QMainWindow):
         self.max_height_spin = QSpinBox()
         self.max_height_spin.setRange(10, 500)
         self.max_height_spin.setValue(35)
+        self.max_height_spin.valueChanged.connect(lambda: self.preset_combo.setCurrentIndex(0))
         self.max_height_spin.valueChanged.connect(self.on_setting_changed)
         controls_layout.addRow("Max Height:", self.max_height_spin)
 
@@ -101,6 +124,7 @@ class ASCIIArtConverter(QMainWindow):
         self.ramp_combo.addItem("Blocks (█▓▒░ )", CHAT_RAMP_BLOCKS)
         self.ramp_combo.addItem("Classic (@#S%?*+;:,. )", CHAT_RAMP_CLASSIC)
         self.ramp_combo.addItem("Detailed", DEFAULT_RAMP)
+        self.ramp_combo.addItem("Chat safe (no markdown)", CHAT_RAMP_SAFE)
         self.ramp_combo.currentIndexChanged.connect(self.on_setting_changed)
         controls_layout.addRow("Ramp:", self.ramp_combo)
 
@@ -144,6 +168,10 @@ class ASCIIArtConverter(QMainWindow):
         self.double_width_check = QCheckBox()
         self.double_width_check.toggled.connect(self.on_setting_changed)
         controls_layout.addRow("Double Width:", self.double_width_check)
+
+        self.color_check = QCheckBox()
+        self.color_check.toggled.connect(self.on_setting_changed)
+        controls_layout.addRow("Color:", self.color_check)
 
         self.wrap_code_block_check = QCheckBox()
         controls_layout.addRow("Wrap in code block:", self.wrap_code_block_check)
@@ -217,6 +245,7 @@ class ASCIIArtConverter(QMainWindow):
             img_bytes,
             img_rgb.width,
             img_rgb.height,
+            img_rgb.width * 3,  # bytesPerLine — must be explicit or Qt misaligns rows
             QImage.Format.Format_RGB888,
         )
 
@@ -233,8 +262,20 @@ class ASCIIArtConverter(QMainWindow):
         super().resizeEvent(event)
         self.display_image_preview()
 
+    def on_preset_changed(self, name: str):
+        if name not in PRESETS:
+            return
+        w, h = PRESETS[name]
+        self.max_width_spin.blockSignals(True)
+        self.max_height_spin.blockSignals(True)
+        self.max_width_spin.setValue(w)
+        self.max_height_spin.setValue(h)
+        self.max_width_spin.blockSignals(False)
+        self.max_height_spin.blockSignals(False)
+        if self.current_image:
+            self.convert_image()
+
     def on_setting_changed(self):
-        # Auto-convert when settings change (if image is loaded)
         if self.current_image:
             self.convert_image()
 
@@ -243,7 +284,6 @@ class ASCIIArtConverter(QMainWindow):
             return
 
         try:
-            # Get current settings
             max_width = self.max_width_spin.value()
             max_height = self.max_height_spin.value()
             ramp = self.ramp_combo.currentData()
@@ -251,49 +291,69 @@ class ASCIIArtConverter(QMainWindow):
             gamma = self.gamma_slider.value() / 100.0
             dither = self.dither_check.isChecked()
             double = self.double_width_check.isChecked()
+            invert = self.invert_check.isChecked()
+            color = self.color_check.isChecked()
 
-            # Handle invert
             img = self.current_image.copy()
-            if self.invert_check.isChecked():
-                img = ImageOps.invert(img.convert("L"))
 
-            # Convert to ASCII
-            ascii_art = image_to_ascii(
-                img=img,
-                max_width=max_width,
-                max_height=max_height,
-                ramp=ramp,
-                aspect=0.55,  # Terminal aspect ratio
-                contrast=contrast,
-                gamma=gamma,
-                autocontrast_cutoff=1,
-                dither=dither,
-                double=double,
-            )
+            if color:
+                plain, colored_html = image_to_colored(
+                    img=img,
+                    max_width=max_width,
+                    max_height=max_height,
+                    ramp=ramp,
+                    aspect=0.55,
+                    contrast=contrast,
+                    gamma=gamma,
+                    autocontrast_cutoff=1,
+                    dither=dither,
+                    double=double,
+                    invert=invert,
+                )
+                self._plain_ascii = plain
+                html_doc = (
+                    '<pre style="font-family:\'Courier New\',monospace;'
+                    ' font-size:9pt; margin:0; padding:0;">'
+                    + colored_html
+                    + "</pre>"
+                )
+                self.ascii_text.setHtml(html_doc)
+            else:
+                if invert:
+                    img = ImageOps.invert(img.convert("L"))
+                ascii_art = image_to_ascii(
+                    img=img,
+                    max_width=max_width,
+                    max_height=max_height,
+                    ramp=ramp,
+                    aspect=0.55,
+                    contrast=contrast,
+                    gamma=gamma,
+                    autocontrast_cutoff=1,
+                    dither=dither,
+                    double=double,
+                )
+                self._plain_ascii = ascii_art
+                self.ascii_text.setPlainText(ascii_art)
 
-            # Display in text area
-            self.ascii_text.setPlainText(ascii_art)
             self.copy_btn.setEnabled(True)
 
         except Exception as e:
             QMessageBox.critical(self, "Conversion Error", f"Failed to convert image: {e}")
 
     def copy_ascii(self):
-        ascii_text = self.ascii_text.toPlainText()
-        if not ascii_text:
+        text = self._plain_ascii
+        if not text:
             return
 
         clipboard = QApplication.clipboard()
         if self.wrap_code_block_check.isChecked():
-            wrapped = f"```txt\n{ascii_text}\n```"
-            clipboard.setText(wrapped)
+            clipboard.setText(f"```\n{text}\n```")
         else:
-            clipboard.setText(ascii_text)
+            clipboard.setText(text)
 
-        # Show status message
         self.status_label.setText("Copied!")
         self.status_label.setStyleSheet("color: #4CAF50; font-weight: bold;")
-        # Clear status after 2 seconds
         QTimer.singleShot(2000, lambda: self.status_label.setText(""))
 
 

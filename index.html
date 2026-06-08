@@ -256,6 +256,19 @@
       <div class="settings-title">Settings</div>
 
       <div class="row">
+        <label>Preset</label>
+        <select id="preset">
+          <option value="">Custom</option>
+          <option value="imessage">iMessage</option>
+          <option value="whatsapp">WhatsApp</option>
+          <option value="telegram">Telegram</option>
+          <option value="discord_mobile">Discord (mobile)</option>
+          <option value="discord_desktop">Discord (desktop)</option>
+          <option value="sms">SMS</option>
+          <option value="twitter">Twitter / X</option>
+        </select>
+      </div>
+      <div class="row">
         <label>Width</label>
         <input type="range" id="maxWidth" min="20" max="200" value="80">
         <span class="val" id="maxWidthVal">80</span>
@@ -271,6 +284,7 @@
           <option value="blocks">Blocks (█▓▒░)</option>
           <option value="classic">Classic (@#S%?*)</option>
           <option value="detailed">Detailed (70 chars)</option>
+          <option value="chat_safe">Chat safe (no markdown)</option>
         </select>
       </div>
       <div class="row">
@@ -288,6 +302,7 @@
         <label class="check-label"><input type="checkbox" id="dither"> Dither</label>
         <label class="check-label"><input type="checkbox" id="invert"> Invert</label>
         <label class="check-label"><input type="checkbox" id="double"> Double width</label>
+        <label class="check-label"><input type="checkbox" id="color"> Color</label>
       </div>
     </div>
   </div>
@@ -363,20 +378,43 @@
   }
 
   // ── Settings ──
+  const PRESETS = {
+    imessage:        { width: 33, height: 18 },
+    whatsapp:        { width: 36, height: 20 },
+    telegram:        { width: 55, height: 28 },
+    discord_mobile:  { width: 42, height: 22 },
+    discord_desktop: { width: 80, height: 40 },
+    sms:             { width: 32, height: 15 },
+    twitter:         { width: 40, height: 22 },
+  };
+
+  document.getElementById('preset').addEventListener('change', function () {
+    const p = PRESETS[this.value];
+    if (!p) return;
+    const wEl = document.getElementById('maxWidth');
+    const hEl = document.getElementById('maxHeight');
+    wEl.value = p.width;
+    hEl.value = p.height;
+    document.getElementById('maxWidthVal').textContent = p.width;
+    document.getElementById('maxHeightVal').textContent = p.height;
+    scheduleConvert();
+  });
+
   [
-    ['maxWidth',  'maxWidthVal',  v => v],
-    ['maxHeight', 'maxHeightVal', v => v],
-    ['contrast',  'contrastVal',  v => (v / 100).toFixed(2)],
-    ['gamma',     'gammaVal',     v => (v / 100).toFixed(2)],
-  ].forEach(([id, dispId, fmt]) => {
+    ['maxWidth',  'maxWidthVal',  v => v,                    true],
+    ['maxHeight', 'maxHeightVal', v => v,                    true],
+    ['contrast',  'contrastVal',  v => (v/100).toFixed(2),   false],
+    ['gamma',     'gammaVal',     v => (v/100).toFixed(2),   false],
+  ].forEach(([id, dispId, fmt, resetsPreset]) => {
     const el = document.getElementById(id);
     el.addEventListener('input', () => {
       document.getElementById(dispId).textContent = fmt(el.value);
+      if (resetsPreset) document.getElementById('preset').value = '';
       scheduleConvert();
     });
   });
 
-  ['ramp', 'dither', 'invert', 'double'].forEach(id =>
+  ['ramp', 'dither', 'invert', 'double', 'color'].forEach(id =>
     document.getElementById(id).addEventListener('change', scheduleConvert)
   );
 
@@ -401,6 +439,7 @@
       dither:     document.getElementById('dither').checked,
       invert:     document.getElementById('invert').checked,
       double:     document.getElementById('double').checked,
+      color:      document.getElementById('color').checked,
     };
 
     try {
@@ -416,7 +455,11 @@
         outBody.innerHTML = '<div class="placeholder"><p style="color:#f44336">Conversion failed</p></div>';
       } else {
         lastAscii = data.ascii;
-        outBody.innerHTML = `<pre>${esc(data.ascii)}</pre>`;
+        if (data.html) {
+          outBody.innerHTML = `<pre>${data.html}</pre>`;
+        } else {
+          outBody.innerHTML = `<pre>${esc(data.ascii)}</pre>`;
+        }
         copyBtn.disabled = false;
       }
     } catch (err) {

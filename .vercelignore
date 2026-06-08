@@ -3,6 +3,7 @@ img2ascii_gui.py
 img2ascii_gui_tk.py
 __pycache__/
 *.pyc
+.venv/
 requirements-desktop.txt
 example.jpg
 images.jpeg

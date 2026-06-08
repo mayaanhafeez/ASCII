@@ -12,6 +12,7 @@ DEFAULT_RAMP = " .'`^\",:;Il!i~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW
 # Chat-friendly ramps (bold, high contrast)
 CHAT_RAMP_BLOCKS = "█▓▒░ "
 CHAT_RAMP_CLASSIC = "@#S%?*+;:,. "
+CHAT_RAMP_SAFE = " .',;:!iltI1rjcfsxeznuvJCYXUZOQ0mwqbdkp8BW$M"
 
 
 def apply_gamma(img_l: Image.Image, gamma: float) -> Image.Image:
@@ -81,6 +82,55 @@ def image_to_ascii(
         lines.append(line)
 
     return "\n".join(lines)
+
+
+def image_to_colored(
+    img: Image.Image,
+    max_width: int,
+    max_height: int,
+    ramp: str,
+    aspect: float,
+    contrast: float,
+    gamma: float,
+    autocontrast_cutoff: int,
+    dither: bool,
+    double: bool,
+    invert: bool = False,
+) -> tuple[str, str]:
+    """Return (plain_text, html_string) with per-character RGB colour spans."""
+    gray = img.convert("L")
+    if invert:
+        gray = ImageOps.invert(gray)
+    gray = ImageOps.autocontrast(gray, cutoff=autocontrast_cutoff)
+    gray = ImageEnhance.Contrast(gray).enhance(max(0.0, contrast))
+    gray = apply_gamma(gray, gamma)
+    w, h = img.size
+    new_w, new_h = compute_size(w, h, max_width, max_height, aspect)
+    gray = gray.resize((new_w, new_h), resample=Image.Resampling.LANCZOS)
+    if dither:
+        gray = gray.convert(
+            "P", palette=Image.Palette.ADAPTIVE, colors=256, dither=Image.Dither.FLOYDSTEINBERG
+        ).convert("L")
+    rgb = img.convert("RGB").resize((new_w, new_h), resample=Image.Resampling.LANCZOS)
+    n = len(ramp) - 1
+    gray_data = list(gray.getdata())
+    rgb_data = list(rgb.getdata())
+    plain_lines, html_lines = [], []
+    for row in range(new_h):
+        start = row * new_w
+        plain_row, spans = [], []
+        for col in range(new_w):
+            idx = start + col
+            ch = ramp[int((gray_data[idx] / 255) * n)]
+            if double:
+                ch = ch * 2
+            plain_row.append(ch)
+            r, g, b = rgb_data[idx]
+            safe = ch.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            spans.append(f'<span style="color:#{r:02x}{g:02x}{b:02x}">{safe}</span>')
+        plain_lines.append("".join(plain_row))
+        html_lines.append("".join(spans))
+    return "\n".join(plain_lines), "\n".join(html_lines)
 
 
 def parse_args() -> argparse.Namespace:
