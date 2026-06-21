@@ -1,9 +1,26 @@
 # Art, Squinting Can Improve It (ASCII)
 
-A beautiful Python desktop application that converts images into ASCII art with real-time preview and extensive customization options.
+Convert images into ASCII art, three ways: a **web app** (deployed on Vercel),
+a **desktop GUI** (PySide6 with a Tkinter fallback), and a **command-line tool**
+for batch processing. All share the same ramp/contrast/gamma/dithering pipeline.
 
 ![Python](https://img.shields.io/badge/python-3.8+-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
+
+## Web version
+
+The browser app is a static `index.html` frontend backed by a Python
+serverless function (`api/convert.py`) that does the conversion with Pillow.
+It's configured for [Vercel](https://vercel.com/) via `vercel.json`:
+
+```bash
+npm i -g vercel   # if needed
+vercel dev        # run the static page + /api/convert locally
+vercel            # deploy
+```
+
+The serverless function only needs Pillow (`requirements.txt`); the desktop
+app's Qt dependency is kept separate in `requirements-desktop.txt`.
 
 ## Features
 
@@ -54,6 +71,10 @@ A beautiful Python desktop application that converts images into ASCII art with 
 
 3. **Install dependencies:**
    ```bash
+   # Desktop GUI (PySide6 + Pillow)
+   pip install -r requirements-desktop.txt
+
+   # CLI / web API only (just Pillow)
    pip install -r requirements.txt
    ```
 
@@ -130,20 +151,27 @@ python img2ascii.py image.jpg --max-width 100 --contrast 1.8 --chat --chat-ramp 
 
 ```
 img_2_ascii/
-├── img2ascii.py          # Core ASCII conversion logic (CLI)
-├── img2ascii_gui.py      # PySide6 (Qt) GUI application
-├── img2ascii_gui_tk.py   # Tkinter fallback GUI
-├── requirements.txt      # Python dependencies
-├── README.md            # This file
-└── .gitignore           # Git ignore rules
+├── img2ascii.py              # Core ASCII conversion logic (CLI)
+├── img2ascii_gui.py          # GUI launcher (PySide6, Tkinter fallback)
+├── img2ascii_gui_tk.py       # Tkinter GUI implementation
+├── index.html                # Web frontend (static)
+├── api/
+│   └── convert.py            # Vercel serverless conversion endpoint
+├── vercel.json               # Vercel build + routing config
+├── requirements.txt          # Web/CLI deps (Pillow)
+├── requirements-desktop.txt  # Desktop deps (PySide6 + Pillow)
+├── example.jpg               # Sample image (README screenshot)
+├── LICENSE
+└── README.md                 # This file
 ```
 
 ## Dependencies
 
-- **PySide6** (>=6.5.0): Modern Qt-based GUI framework
-- **Pillow** (>=10.0.0): Image processing library
+- **Pillow** (>=10.0.0): image processing — used by the CLI, GUI, and web API
+- **PySide6** (>=6.5.0): Qt GUI framework for the desktop app
 
-If PySide6 is not available, the app automatically falls back to Tkinter (included with Python).
+If PySide6 isn't installed, the desktop app falls back to Tkinter (bundled
+with Python). The web API needs only Pillow.
 
 ## Contributing
 
