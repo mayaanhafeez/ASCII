@@ -1,6 +1,7 @@
 # Art, Squinting Can Improve It (ASCII)
 
-Convert images into ASCII art, three ways: a **web app** (deployed on Vercel),
+Convert images into ASCII art, three ways: a **web app** (live at
+[ascii.ayaanhafeez.dev](https://ascii.ayaanhafeez.dev)),
 a **desktop GUI** (PySide6 with a Tkinter fallback), and a **command-line tool**
 for batch processing. All share the same ramp/contrast/gamma/dithering pipeline.
 
@@ -11,7 +12,8 @@ for batch processing. All share the same ramp/contrast/gamma/dithering pipeline.
 
 The browser app is a static `index.html` frontend backed by a Python
 serverless function (`api/convert.py`) that does the conversion with Pillow.
-It's configured for [Vercel](https://vercel.com/) via `vercel.json`:
+It's live at [ascii.ayaanhafeez.dev](https://ascii.ayaanhafeez.dev) and
+configured for [Vercel](https://vercel.com/) via `vercel.json`:
 
 ```bash
 npm i -g vercel   # if needed
