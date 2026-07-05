@@ -138,3 +138,5 @@ dmypy.json
 *.bmp
 *.webp
 !example.jpg
+
+/.playwright-mcp
